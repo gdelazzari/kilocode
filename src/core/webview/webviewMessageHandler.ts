@@ -3520,17 +3520,7 @@ export const webviewMessageHandler = async (
 			}
 			break
 		}
-		// kilocode_change start: Speech recognition handlers
-		case "startSpeechRecognition": {
-			const { handleStartSpeechRecognition } = await import("./speechMessageHandlers")
-			await handleStartSpeechRecognition(provider)
-			break
-		}
-		case "stopSpeechRecognition": {
-			const { handleStopSpeechRecognition } = await import("./speechMessageHandlers")
-			await handleStopSpeechRecognition(provider)
-			break
-		}
+		// kilocode_change start: Speech recognition handlers (streaming only)
 		case "cancelSpeechRecognition": {
 			const { handleCancelSpeechRecognition } = await import("./speechMessageHandlers")
 			await handleCancelSpeechRecognition(provider)

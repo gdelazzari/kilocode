@@ -1,12 +1,12 @@
 import React from "react"
-import { Mic } from "lucide-react"
+import { Mic, Square } from "lucide-react"
 import { StandardTooltip } from "@/components/ui"
 import { cn } from "@/lib/utils"
 
 interface MicrophoneButtonProps {
 	isRecording: boolean
 	onClick: () => void
-	containerWidth: number
+	containerWidth?: number
 	disabled?: boolean
 }
 
@@ -32,9 +32,9 @@ export const MicrophoneButton: React.FC<MicrophoneButtonProps> = ({
 					isRecording
 						? "opacity-100 text-red-500 animate-pulse hover:text-red-600"
 						: "opacity-60 hover:opacity-100 text-vscode-descriptionForeground hover:text-vscode-foreground hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)] active:bg-[rgba(255,255,255,0.1)]",
-					{ hidden: containerWidth < 235 },
+					containerWidth !== undefined && { hidden: containerWidth < 235 },
 				)}>
-				<Mic className="w-4 h-4" />
+				{isRecording ? <Square className="w-4 h-4 fill-current" /> : <Mic className="w-4 h-4" />}
 			</button>
 		</StandardTooltip>
 	)

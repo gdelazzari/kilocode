@@ -115,8 +115,7 @@ The Speech Service provides real-time speech-to-text functionality using FFmpeg 
 - Direct API calls using user's OpenAI API key
 - Auto-detects key from provider settings
 - File upload via multipart/form-data
-- **Format conversion**: WebM chunks are converted to MP3 before upload for better API compatibility
-- OpenAI's API is strict about WebM validation, MP3 is more reliable
+- **No conversion needed**: WebM files with Opus codec work directly with OpenAI Whisper API
 
 ### Key Detection
 
@@ -216,8 +215,9 @@ const DEFAULT_SETTINGS = {
 
 1. **File Extension**: Always use `.webm` (not `.ogg`)
 2. **No Format Flag**: Never use `-f webm` or `-f ogg` - let FFmpeg infer from extension
-3. **MIME Type**: Use `audio/webm` when uploading to OpenAI
-4. **Matches Cline**: Configuration exactly matches Cline's working implementation
+3. **No Conversion**: WebM files upload directly to OpenAI - no MP3 conversion needed
+4. **Event-Driven**: Chunk detection uses FFmpeg stderr parsing, not polling
+5. **Singleton Pattern**: Requires ProviderSettingsManager in getInstance()
 
 ## Testing
 

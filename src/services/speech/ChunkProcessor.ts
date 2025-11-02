@@ -64,20 +64,21 @@ export class ChunkProcessor extends EventEmitter implements IChunkProcessor {
 
 	/**
 	 * Stop watching FFmpeg stderr
+	 * Returns a promise that resolves after final chunk is emitted
 	 */
-	stopWatching(): void {
+	async stopWatching(): Promise<void> {
 		if (!this.isWatching) {
 			return
 		}
-
-		console.log("[ChunkProcessor] 🛑 Stopped watching FFmpeg stderr")
 
 		// Emit the last chunk if we have one (when recording stops, the last chunk is complete)
 		if (this.lastChunkNumber >= 0) {
 			const lastChunkName = `chunk_${String(this.lastChunkNumber).padStart(3, "0")}.webm`
 			const lastChunkPath = path.join(this.outputDir, lastChunkName)
-			console.log(`[ChunkProcessor] ✅ Emitting final chunk: ${lastChunkName}`)
+
+			// Emit and wait a moment for processing to start
 			this.emit("chunkReady", lastChunkPath)
+			await new Promise((resolve) => setTimeout(resolve, 100))
 		}
 
 		if (this.ffmpegProcess?.stderr) {

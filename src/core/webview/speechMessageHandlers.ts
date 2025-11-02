@@ -1,85 +1,12 @@
-// kilocode_change - new file: Simplified speech message handlers
+// kilocode_change - new file: Streaming speech message handlers
 import { ClineProvider } from "./ClineProvider"
 import { SpeechService, ProgressiveResult } from "../../services/speech/SpeechService"
-
-/**
- * Start batch speech recording
- */
-export async function handleStartSpeechRecognition(provider: ClineProvider): Promise<void> {
-	const speechService = SpeechService.getInstance()
-
-	try {
-		const result = await speechService.startRecording()
-		if (result.success) {
-			await provider.postMessageToWebview({
-				type: "speechSessionStarted",
-				values: {
-					sessionId: `speech-${Date.now()}`,
-					language: "en",
-					timestamp: Date.now(),
-				},
-			})
-		} else {
-			await provider.postMessageToWebview({
-				type: "speechError",
-				text: result.error || "Failed to start recording",
-			})
-		}
-	} catch (error) {
-		await provider.postMessageToWebview({
-			type: "speechError",
-			text: `Failed to start recording: ${error instanceof Error ? error.message : "Unknown error"}`,
-		})
-	}
-}
-
-/**
- * Stop batch recording and transcribe
- */
-export async function handleStopSpeechRecognition(provider: ClineProvider): Promise<void> {
-	const speechService = SpeechService.getInstance()
-
-	try {
-		const result = await speechService.stopRecordingAndTranscribe()
-
-		if (result.success && result.text) {
-			await provider.postMessageToWebview({
-				type: "speechUpdate",
-				text: result.text,
-				values: {
-					confidence: 0.9,
-					isFinal: true,
-					timestamp: Date.now(),
-					language: "en",
-				},
-			})
-		} else {
-			await provider.postMessageToWebview({
-				type: "speechError",
-				text: result.error || "Transcription failed",
-			})
-		}
-
-		await provider.postMessageToWebview({
-			type: "speechSessionStopped",
-			values: {
-				sessionId: `speech-${Date.now()}`,
-				timestamp: Date.now(),
-			},
-		})
-	} catch (error) {
-		await provider.postMessageToWebview({
-			type: "speechError",
-			text: `Failed to stop recording: ${error instanceof Error ? error.message : "Unknown error"}`,
-		})
-	}
-}
 
 /**
  * Cancel speech recording
  */
 export async function handleCancelSpeechRecognition(provider: ClineProvider): Promise<void> {
-	const speechService = SpeechService.getInstance()
+	const speechService = SpeechService.getInstance(provider.providerSettingsManager)
 
 	try {
 		const result = await speechService.cancelRecording()
@@ -109,7 +36,7 @@ export async function handleCancelSpeechRecognition(provider: ClineProvider): Pr
  * Start streaming speech with real-time transcription
  */
 export async function handleStartStreamingSpeech(provider: ClineProvider): Promise<void> {
-	const speechService = SpeechService.getInstance()
+	const speechService = SpeechService.getInstance(provider.providerSettingsManager)
 
 	try {
 		// Set up event listeners
@@ -197,7 +124,7 @@ export async function handleStartStreamingSpeech(provider: ClineProvider): Promi
  * Stop streaming speech
  */
 export async function handleStopStreamingSpeech(provider: ClineProvider): Promise<void> {
-	const speechService = SpeechService.getInstance()
+	const speechService = SpeechService.getInstance(provider.providerSettingsManager)
 
 	try {
 		const result = await speechService.stopStreamingRecording()

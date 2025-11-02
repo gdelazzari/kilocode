@@ -47,30 +47,19 @@ export class TranscriptionClient implements ITranscriptionClient {
 
 		// Verify file exists and has content
 		const stats = await fsSync.promises.stat(audioPath)
-		console.log(`[TranscriptionClient] 📊 File stats: ${audioPath}, size: ${stats.size} bytes`)
 
 		if (stats.size === 0) {
-			console.log(`[TranscriptionClient] ⚠️ Skipping empty file: ${audioPath}`)
-			return "" // Return empty string for empty files (happens when recording stops mid-chunk)
+			return "" // Empty file - happens when recording stops mid-chunk
 		}
 
 		// Skip very small files (less than 1KB) - likely incomplete/corrupted
 		if (stats.size < 1024) {
-			console.log(`[TranscriptionClient] ⚠️ File too small (${stats.size} bytes), skipping: ${audioPath}`)
 			return ""
 		}
 
-		// Wait a moment to ensure file is fully written (especially for segmented files)
-		await new Promise((resolve) => setTimeout(resolve, 300))
-
-		// Use fs.createReadStream for Node.js file upload
 		// WebM files with Opus codec work directly with OpenAI Whisper API
 		// CRITICAL: Must use toFile() to preserve filename/extension for proper MIME type detection
-		console.log(`[TranscriptionClient] 📤 Uploading to OpenAI: ${audioPath}`)
-
-		// Import path to get filename
 		const fileName = audioPath.split("/").pop() || "audio.webm"
-		console.log(`[TranscriptionClient] 📝 Filename: ${fileName}`)
 
 		// Create a File-like object with proper filename
 		const audioFile = await import("openai").then((mod) => mod.toFile(fsSync.createReadStream(audioPath), fileName))
@@ -86,7 +75,6 @@ export class TranscriptionClient implements ITranscriptionClient {
 			throw new Error("No transcription text received")
 		}
 
-		console.log(`[TranscriptionClient] ✅ Transcription received: "${transcription.text.substring(0, 50)}..."`)
 		return transcription.text.trim()
 	}
 
@@ -106,43 +94,29 @@ export class TranscriptionClient implements ITranscriptionClient {
 	 */
 	private async getOpenAiApiKey(): Promise<string | null> {
 		try {
-			console.log("[TranscriptionClient] 🔍 Searching for OpenAI API key across all providers...")
-
 			// Get all provider configurations
 			const allProfiles = await this.providerSettingsManager.listConfig()
-			console.log(`[TranscriptionClient] 📋 Found ${allProfiles.length} provider profiles`)
 
 			// Search for OpenAI or OpenAI-native providers
 			for (const profile of allProfiles) {
-				console.log(
-					`[TranscriptionClient] 🔍 Checking profile "${profile.name}" (provider: ${profile.apiProvider})`,
-				)
-
 				if (profile.apiProvider === "openai" || profile.apiProvider === "openai-native") {
-					console.log(`[TranscriptionClient] ✅ Found OpenAI provider: "${profile.name}"`)
-
 					// Get the full profile with API key
 					const fullProfile = await this.providerSettingsManager.getProfile({ id: profile.id })
 
 					// Extract API key based on provider type
 					if (profile.apiProvider === "openai" && fullProfile.openAiApiKey) {
-						console.log(`[TranscriptionClient] ✅ Found openAiApiKey in profile "${profile.name}"`)
 						return fullProfile.openAiApiKey
 					}
 
 					if (profile.apiProvider === "openai-native" && fullProfile.openAiNativeApiKey) {
-						console.log(`[TranscriptionClient] ✅ Found openAiNativeApiKey in profile "${profile.name}"`)
 						return fullProfile.openAiNativeApiKey
 					}
-
-					console.log(`[TranscriptionClient] ⚠️ Profile "${profile.name}" is OpenAI type but has no API key`)
 				}
 			}
 
-			console.error("[TranscriptionClient] ❌ No OpenAI API key found in any provider configuration")
 			return null
 		} catch (error) {
-			console.error("[TranscriptionClient] ❌ Error getting OpenAI API key:", error)
+			console.error("[TranscriptionClient] Error getting OpenAI API key:", error)
 			return null
 		}
 	}

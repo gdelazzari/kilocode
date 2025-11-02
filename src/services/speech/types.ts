@@ -12,14 +12,6 @@ export enum SpeechState {
 }
 
 /**
- * Recording mode
- */
-export enum RecordingMode {
-	BATCH = "batch",
-	STREAMING = "streaming",
-}
-
-/**
  * Streaming configuration
  */
 export interface StreamingConfig {
@@ -87,14 +79,6 @@ export interface TranscriptionResult {
 }
 
 /**
- * Audio converter interface
- */
-export interface IAudioConverter {
-	convertToMp3(webmPath: string): Promise<string>
-	convertBatch(webmPaths: string[]): Promise<string[]>
-}
-
-/**
  * Transcription client interface
  */
 export interface ITranscriptionClient {
@@ -116,7 +100,7 @@ export interface ChunkProcessorEvents {
  */
 export interface IChunkProcessor {
 	startWatching(ffmpegProcess: ChildProcess, outputDir: string): void
-	stopWatching(): void
+	stopWatching(): Promise<void>
 	on<K extends keyof ChunkProcessorEvents>(event: K, listener: ChunkProcessorEvents[K]): this
 	off<K extends keyof ChunkProcessorEvents>(event: K, listener: ChunkProcessorEvents[K]): this
 	emit<K extends keyof ChunkProcessorEvents>(event: K, ...args: Parameters<ChunkProcessorEvents[K]>): boolean
