@@ -67,6 +67,7 @@ import { McpHub } from "../../services/mcp/McpHub"
 import { McpServerManager } from "../../services/mcp/McpServerManager"
 import { MarketplaceManager } from "../../services/marketplace"
 import { ShadowCheckpointService } from "../../services/checkpoints/ShadowCheckpointService"
+import { SpeechService } from "../../services/speech/SpeechService" // kilocode_change
 import { CodeIndexManager } from "../../services/code-index/manager"
 import type { IndexProgressUpdate } from "../../services/code-index/interfaces/manager"
 import { MdmService } from "../../services/mdm/MdmService"
@@ -146,10 +147,15 @@ export class ClineProvider
 	private clineStack: Task[] = []
 	private codeIndexStatusSubscription?: vscode.Disposable
 	private codeIndexManager?: CodeIndexManager
-	private _workspaceTracker?: WorkspaceTracker // workSpaceTracker read-only for access outside this class
-	protected mcpHub?: McpHub // Change from private to protected
+	private _workspaceTracker?: WorkspaceTracker // kilocode_change: workSpaceTracker read-only for access outside this class
+	public get workspaceTracker(): WorkspaceTracker | undefined {
+		// kilocode_change
+		return this._workspaceTracker
+	}
+	protected mcpHub?: McpHub // kilocode_change: Change from private to protected
 	private marketplaceManager: MarketplaceManager
 	private mdmService?: MdmService
+	private speechService?: SpeechService // kilocode_change: Speech-to-text service
 	private taskCreationCallback: (task: Task) => void
 	private taskEventListeners: WeakMap<Task, Array<() => void>> = new WeakMap()
 	private currentWorkspacePath: string | undefined
@@ -205,6 +211,10 @@ export class ClineProvider
 			})
 
 		this.marketplaceManager = new MarketplaceManager(this.context, this.customModesManager)
+
+		// kilocode_change start: Initialize DictationService with OpenAI API key detection
+		this.initializeDictationService()
+		// kilocode_change end
 
 		// Forward <most> task events to the provider.
 		// We do something fairly similar for the IPC-based API.
@@ -321,6 +331,27 @@ export class ClineProvider
 	): this {
 		return super.off(event, listener as any)
 	}
+
+	// kilocode_change start: Initialize SpeechService (simplified)
+	/**
+	 * Initialize SpeechService (simplified speech-to-text)
+	 */
+	private initializeDictationService(): void {
+		try {
+			this.speechService = SpeechService.getInstance()
+			this.log("✅ SpeechService initialized - ready for speech-to-text")
+		} catch (error) {
+			this.log(`❌ Failed to initialize SpeechService: ${error}`)
+		}
+	}
+
+	/**
+	 * Get SpeechService instance for message handlers
+	 */
+	public getSpeechService(): SpeechService | undefined {
+		return this.speechService
+	}
+	// kilocode_change end
 
 	/**
 	 * Initialize cloud profile synchronization
@@ -625,6 +656,14 @@ export class ClineProvider
 		this.mcpHub = undefined
 		this.marketplaceManager?.cleanup()
 		this.customModesManager?.dispose()
+
+		// Clean up SpeechService
+		if (this.speechService) {
+			this.speechService.dispose()
+			this.speechService = undefined
+			this.log("Disposed SpeechService")
+		}
+
 		this.log("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
 
@@ -2484,10 +2523,6 @@ ${prompt}
 	}
 
 	// getters
-
-	public get workspaceTracker(): WorkspaceTracker | undefined {
-		return this._workspaceTracker
-	}
 
 	get viewLaunched() {
 		return this.isViewLaunched

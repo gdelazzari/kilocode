@@ -175,6 +175,12 @@ export interface WebviewMessage {
 		| "enhancementApiConfigId"
 		| "commitMessageApiConfigId" // kilocode_change
 		| "terminalCommandApiConfigId" // kilocode_change
+		| "startSpeechRecognition" // kilocode_change
+		| "stopSpeechRecognition" // kilocode_change
+		| "cancelSpeechRecognition" // kilocode_change
+		| "startStreamingSpeech" // kilocode_change: Real-time streaming speech
+		| "stopStreamingSpeech" // kilocode_change: Stop real-time streaming speech
+		| "autocompleteApiConfigId" // kilocode_change
 		| "ghostServiceSettings" // kilocode_change
 		| "includeTaskHistoryInEnhance"
 		| "updateExperimental"
@@ -305,6 +311,16 @@ export interface WebviewMessage {
 		| "editQueuedMessage"
 		| "dismissUpsell"
 		| "getDismissedUpsells"
+		// kilocode_change start: Speech recognition message types
+		| "startSpeechRecognition" // Start speech-to-text recognition
+		| "stopSpeechRecognition" // Stop speech-to-text recognition
+		| "cancelSpeechRecognition" // Cancel speech-to-text recognition
+		| "startStreamingSpeech" // Start streaming speech-to-text
+		| "stopStreamingSpeech" // Stop streaming speech-to-text
+		| "enumerateAudioDevices" // Get available audio input devices
+		| "updateSpeechConfig" // Update speech recognition configuration
+		| "getSpeechLanguages" // Get supported speech recognition languages
+	// kilocode_change end: Speech recognition message types
 	text?: string
 	editedMessageContent?: string
 	tab?: "settings" | "history" | "mcp" | "modes" | "chat" | "marketplace" | "cloud"

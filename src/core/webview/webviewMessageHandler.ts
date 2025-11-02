@@ -3520,6 +3520,43 @@ export const webviewMessageHandler = async (
 			}
 			break
 		}
+		// kilocode_change start: Speech recognition handlers
+		case "startSpeechRecognition": {
+			const { handleStartSpeechRecognition } = await import("./speechMessageHandlers")
+			await handleStartSpeechRecognition(provider)
+			break
+		}
+		case "stopSpeechRecognition": {
+			const { handleStopSpeechRecognition } = await import("./speechMessageHandlers")
+			await handleStopSpeechRecognition(provider)
+			break
+		}
+		case "cancelSpeechRecognition": {
+			const { handleCancelSpeechRecognition } = await import("./speechMessageHandlers")
+			await handleCancelSpeechRecognition(provider)
+			break
+		}
+		case "startStreamingSpeech": {
+			const { handleStartStreamingSpeech } = await import("./speechMessageHandlers")
+			await handleStartStreamingSpeech(provider)
+			break
+		}
+		case "stopStreamingSpeech": {
+			const { handleStopStreamingSpeech } = await import("./speechMessageHandlers")
+			await handleStopStreamingSpeech(provider)
+			break
+		}
+		// kilocode_change start: Legacy Azure speech service cases removed - no longer supported
+		case "enumerateAudioDevices":
+		case "updateSpeechConfig":
+		case "getSpeechLanguages": {
+			await provider.postMessageToWebview({
+				type: "speechError",
+				text: "Legacy speech service methods are no longer supported. Use the new dictation system.",
+			})
+			break
+		}
+		// kilocode_change end: Legacy Azure speech service cases
 		// kilocode_change end: Type-safe global state handler
 		case "insertTextToChatArea":
 			provider.postMessageToWebview({ type: "insertTextToChatArea", text: message.text })

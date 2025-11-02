@@ -39,6 +39,7 @@ import {
 	MessageSquareX,
 } from "lucide-react"
 import { IndexingStatusBadge } from "./IndexingStatusBadge"
+import { MicrophoneButton } from "./MicrophoneButton" // kilocode_change
 import { cn } from "@/lib/utils"
 import { usePromptHistory } from "./hooks/usePromptHistory"
 
@@ -155,6 +156,10 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [searchRequestId, setSearchRequestId] = useState<string>("")
+		// kilocode_change start: Real-time speech-to-text state (moved before useEffect)
+		const [isRecording, setIsRecording] = useState(false)
+		const [streamingText, setStreamingText] = useState("")
+		// kilocode_change end
 
 		// Close dropdown when clicking outside.
 		useEffect(() => {
@@ -222,12 +227,31 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}, 0)
 					}
 				}
+				// kilocode_change start: Real-time speech streaming message handlers
+				else if (message.type === "speechStreamingStarted") {
+					setIsRecording(true)
+					setStreamingText("")
+				} else if (message.type === "speechStreamingProgress") {
+					// Backend sends cumulative text, so replace entirely
+					const cumulativeText = message.text || ""
+					setStreamingText(cumulativeText)
+					// Update the actual input value with cumulative text
+					setInputValue(cumulativeText)
+				} else if (message.type === "speechStreamingStopped") {
+					setIsRecording(false)
+					// Final text is already in inputValue from progressive updates
+					setStreamingText("")
+				} else if (message.type === "speechStreamingError") {
+					setIsRecording(false)
+					setStreamingText("")
+					// Error is already displayed by extension
+				}
 				// kilocode_change end
 			}
 
 			window.addEventListener("message", messageHandler)
 			return () => window.removeEventListener("message", messageHandler)
-		}, [setInputValue, searchRequestId])
+		}, [setInputValue, searchRequestId, streamingText, inputValue])
 
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		// kilocode_change start: pull slash commands from Cline
@@ -292,6 +316,18 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			setImageWarning(null)
 		}, [])
 		// kilocode_change end: Image warning handlers
+
+		// kilocode_change start: Real-time speech-to-text handlers
+		const handleMicrophoneClick = useCallback(() => {
+			if (isRecording) {
+				// Stop recording
+				vscode.postMessage({ type: "stopStreamingSpeech" })
+			} else {
+				// Start recording
+				vscode.postMessage({ type: "startStreamingSpeech" })
+			}
+		}, [isRecording])
+		// kilocode_change end
 
 		// kilocode_change start: Clear images if unsupported
 		// Track previous shouldDisableImages state to detect when model image support changes
@@ -1308,7 +1344,7 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 						onHeightChange?.(height)
 					}}
-					// kilocode_change: combine placeholderText and placeholderBottomText here
+					// kilocode_change: use regular placeholder, streaming text goes to actual input
 					placeholder={`${placeholderText}\n${placeholderBottomText}`}
 					minRows={3}
 					maxRows={15}
@@ -1391,6 +1427,15 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				<div className="absolute bottom-2 end-2 z-30">
 					{/* kilocode_change start */}
 					{!isEditMode && <IndexingStatusBadge className={cn({ hidden: containerWidth < 235 })} />}
+
+					{/* kilocode_change start: Microphone button for real-time speech-to-text */}
+					<MicrophoneButton
+						isRecording={isRecording}
+						onClick={handleMicrophoneClick}
+						containerWidth={containerWidth}
+					/>
+					{/* kilocode_change end: Microphone button */}
+
 					<StandardTooltip content="Add Context (@)">
 						<button
 							aria-label="Add Context (@)"

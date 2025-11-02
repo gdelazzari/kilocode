@@ -1,3 +1,4 @@
+// kilocode_change - new file: Myers diff algorithm implementation for Continue.dev integration
 import { diffChars, diffLines, type Change } from "diff"
 
 import { DiffChar, DiffLine } from ".."
@@ -24,7 +25,7 @@ function convertMyersChangeToDiffLines(change: Change): DiffLine[] {
 // pass ignoreNewlineAtEof: true.
 export function myersDiff(oldContent: string, newContent: string): DiffLine[] {
 	const theirFormat = diffLines(oldContent, newContent, {
-		ignoreNewlineAtEof: true,
+		newlineIsToken: false,
 	})
 	const ourFormat = theirFormat.flatMap(convertMyersChangeToDiffLines)
 

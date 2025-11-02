@@ -155,6 +155,18 @@ export interface ExtensionMessage {
 		| "dismissedUpsells"
 		| "showTimestamps" // kilocode_change
 		| "organizationSwitchResult"
+		| "speechUpdate" // kilocode_change: Speech recognition interim and final results
+		| "speechSessionStarted" // kilocode_change: Speech recognition session started
+		| "speechSessionStopped" // kilocode_change: Speech recognition session stopped
+		| "speechError" // kilocode_change: Speech recognition error occurred
+		| "speechNoMatch" // kilocode_change: No speech was recognized
+		| "speechDevicesEnumerated" // kilocode_change: Available audio devices list
+		| "speechLanguagesResponse" // kilocode_change: Supported languages response
+		| "speechConfigUpdated" // kilocode_change: Speech configuration updated
+		| "speechStreamingStarted" // kilocode_change: Real-time streaming recording started
+		| "speechStreamingProgress" // kilocode_change: Progressive text update during streaming
+		| "speechStreamingStopped" // kilocode_change: Real-time streaming recording stopped
+		| "speechStreamingError" // kilocode_change: Real-time streaming error occurred
 	text?: string
 	// kilocode_change start
 	payload?:
@@ -267,7 +279,19 @@ export interface ExtensionMessage {
 	commands?: Command[]
 	queuedMessages?: QueuedMessage[]
 	list?: string[] // For dismissedUpsells
+	// kilocode_change start: Speech recognition properties
+	confidence?: number
+	isFinal?: boolean
+	language?: string | null
+	sessionId?: string | null
+	code?: string
+	category?: string
 	organizationId?: string | null // For organizationSwitchResult
+	// Real-time streaming speech properties
+	progressiveText?: string // Accumulated text so far during streaming
+	chunkIndex?: number // Current chunk number in streaming session
+	isStreaming?: boolean // Whether streaming is currently active
+	// kilocode_change end: Speech recognition properties
 }
 
 export type ExtensionState = Pick<
