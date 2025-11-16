@@ -124,6 +124,13 @@ import { getMessagesSinceLastSummary, summarizeConversation } from "../condense"
 import { Gpt5Metadata, ClineMessageWithMetadata } from "./types"
 import { MessageQueueService } from "../message-queue/MessageQueueService"
 import { findPartialAskMessage, findPartialSayMessage, MessageInsertionGuard } from "../kilocode/task/message-utils" // kilocode_change
+import {
+	PartialMessageManager,
+	handlePartialMessageCompletion,
+	cleanupOrphanedPartialAsks,
+	cleanupOrphanedPartialSays,
+	completeAllPartialMessages,
+} from "../kilocode/task/partial-message-manager" // kilocode_change
 
 import { AutoApprovalHandler } from "./AutoApprovalHandler"
 import { isAnyRecognizedKiloCodeError, isPaymentRequiredError } from "../../shared/kilocode/errorUtils"
@@ -230,6 +237,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	// kilocode_change start: Message insertion guard to prevent race conditions with checkpoint messages
 	private readonly messageInsertionGuard = new MessageInsertionGuard()
+	// kilocode_change end
+
+	// kilocode_change start: Partial message manager to prevent race condition deadlocks
+	private readonly partialMessageManager = new PartialMessageManager()
 	// kilocode_change end
 
 	// TaskStatus
@@ -820,6 +831,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		let askTs: number
+		// kilocode_change start: Track if this is a partial completion for proper synchronization
+		let wasPartialCompletion = false
+		// kilocode_change end
 
 		if (partial !== undefined) {
 			// kilocode_change start: Fix orphaned partial asks by searching backwards
@@ -828,9 +842,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const partialResult = findPartialAskMessage(this.clineMessages, type)
 			const lastMessage = partialResult?.message
 			const isUpdatingPreviousPartial = lastMessage !== undefined
-			// kilocode_change end
 
-			if (partial) {
+			if (partial === true) {
+				// kilocode_change end
 				if (isUpdatingPreviousPartial) {
 					// Existing partial message, so update it.
 					lastMessage.text = text
@@ -872,14 +886,24 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					// never altered after first setting it.
 					askTs = lastMessage.ts
 					this.lastMessageTs = askTs
+
+					// kilocode_change start: Track partial completion for proper wait synchronization
+					wasPartialCompletion = true
+					const messageKey = PartialMessageManager.generateMessageKey(type, askTs)
+					this.partialMessageManager.startPartialCompletion(messageKey, askTs)
+					// kilocode_change end
+
 					lastMessage.text = text
 					lastMessage.partial = false
 					lastMessage.progressStatus = progressStatus
 					lastMessage.isProtected = isProtected
 					await this.saveClineMessages()
 					this.updateClineMessage(lastMessage)
+
+					// kilocode_change start: Mark completion done
+					this.partialMessageManager.completePartialMessage(messageKey)
+					// kilocode_change end
 				} else {
-					// This is a new and complete message, so add it like normal.
 					this.askResponse = undefined
 					this.askResponseText = undefined
 					this.askResponseImages = undefined
@@ -890,6 +914,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			}
 		} else {
 			// This is a new non-partial message, so add it like normal.
+			// kilocode_change start: Clean up any orphaned partial messages before creating new one
+			const hadOrphans = cleanupOrphanedPartialAsks(this.clineMessages, type)
+			if (hadOrphans) {
+				await this.saveClineMessages()
+			}
+			// kilocode_change end
+
 			this.askResponse = undefined
 			this.askResponseText = undefined
 			this.askResponseImages = undefined
@@ -1002,8 +1033,33 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			}
 		}
 
-		// Wait for askResponse to be set.
-		await pWaitFor(() => this.askResponse !== undefined || this.lastMessageTs !== askTs, { interval: 100 })
+		// kilocode_change start: Prevent deadlock when lastMessageTs === askTs
+		// This can happen in two scenarios:
+		// 1. Partial message completions (reuse timestamp by design)
+		// 2. Race conditions with checkpoint saves or other timing issues
+		//
+		// The fix: If lastMessageTs === askTs, only wait for askResponse (not timestamp change)
+		// because the timestamp condition will never be true
+		if (wasPartialCompletion) {
+			// Partial completions: use managed wait that only checks askResponse
+			const messageKey = PartialMessageManager.generateMessageKey(type, askTs)
+			await handlePartialMessageCompletion(
+				this.partialMessageManager,
+				messageKey,
+				askTs,
+				() => this.askResponse,
+				() => this.lastMessageTs ?? askTs,
+				{ interval: 100 },
+			)
+		} else if (this.lastMessageTs === askTs) {
+			// Regular messages with timestamp equality: only wait for askResponse
+			// This prevents deadlock when timestamps match due to timing issues
+			await pWaitFor(() => this.askResponse !== undefined, { interval: 100 })
+		} else {
+			// Regular messages with different timestamps: use dual-condition wait
+			await pWaitFor(() => this.askResponse !== undefined || this.lastMessageTs !== askTs, { interval: 100 })
+		}
+		// kilocode_change end
 
 		if (this.lastMessageTs !== askTs) {
 			// Could happen if we send multiple asks in a row i.e. with
@@ -2095,15 +2151,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						await this.diffViewProvider.revertChanges() // closes diff view
 					}
 
-					// if last message is a partial we need to update and save it
-					const lastMessage = this.clineMessages.at(-1)
-
-					if (lastMessage && lastMessage.partial) {
-						// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
-						lastMessage.partial = false
-						// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-						console.log("updating partial message", lastMessage)
-					}
+					// kilocode_change start: Complete ALL partial messages when aborting stream
+					completeAllPartialMessages(this.clineMessages)
+					// kilocode_change end
 
 					// Update `api_req_started` to have cancelled and cost, so that
 					// we can display the cost of the partial stream and the cancellation reason
