@@ -39,7 +39,11 @@ Before enabling Managed Indexing:
 
 ## How to Enable
 
-Codebase Indexing is currently in beta and requires opt-in configuration.
+**Managed Indexing is enabled by default for all new users.** If you have an available credit balance and your workspace is a Git repository, indexing will start automatically.
+
+### Disabling Managed Indexing
+
+If you prefer to use local indexing instead, you can disable managed indexing:
 
 1. Create a `.kilocode/config.json` file in the root of your repository (if it doesn't already exist).
 2. Add the following configuration:
@@ -48,7 +52,7 @@ Codebase Indexing is currently in beta and requires opt-in configuration.
 {
 	"projectId": "my-project-name",
 	"baseBranch": "main",
-	"managedIndexingEnabled": true
+	"managedIndexingEnabled": false
 }
 ```
 
@@ -58,9 +62,9 @@ Codebase Indexing is currently in beta and requires opt-in configuration.
 | ------------------------ | ------- | -------- | ------------------------------------------------------------------------------- |
 | `projectId`              | string  | No       | Custom name for your project. Defaults to the name from your Git origin remote. |
 | `baseBranch`             | string  | No       | Specifies your base branch if it isn't `main`, `master`, `dev`, or `develop`.   |
-| `managedIndexingEnabled` | boolean | No       | Set to `true` to enable indexing for individual accounts. Defaults to `false`.  |
+| `managedIndexingEnabled` | boolean | No       | Set to `false` to disable managed indexing. Defaults to `true` for new users.  |
 
-For organization-wide shared indexing, contact support. This will be rolled out to all organizations within the coming week and will eventually be enabled by default for any account with an available balance.
+For organization-wide shared indexing, contact support.
 
 ---
 

@@ -8,6 +8,10 @@ import Codicon from '@site/src/components/Codicon';
 
 Codebase Indexing enables semantic code search across your entire project using AI embeddings. Instead of searching for exact text matches, it understands the _meaning_ of your queries, helping Kilo Code find relevant code even when you don't know specific function names or file locations.
 
+:::info
+**Managed Indexing is now enabled by default for all new users.** For cloud-hosted indexing with automatic setup, see [Managed Indexing](/advanced-usage/managed-indexing). This page covers self-hosted indexing configuration.
+:::
+
 <img src="/docs/img/codebase-indexing/codebase-indexing.png" alt="Codebase Indexing Settings" width="800" />
 
 ## What It Does
