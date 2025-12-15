@@ -1,0 +1,15 @@
+{
+	"compilerOptions": {
+		"declaration": true,
+		"emitDeclarationOnly": true,
+		"outDir": "./types",
+		"noEmit": false,
+		"incremental": false,
+		"skipLibCheck": true,
+		"skipDefaultLibCheck": true,
+		"noErrorTruncation": false,
+		"baseUrl": "."
+	},
+	"include": ["../packages/types/src/message.ts"],
+	"exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts"]
+}
