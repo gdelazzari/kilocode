@@ -1,17 +1,30 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest"
 import { EventEmitter } from "node:events"
+import * as path from "node:path"
 import * as telemetry from "../telemetry"
 
-const MOCK_CLI_PATH = "/mock/path/to/kilocode"
+const isWindows = process.platform === "win32"
+const MOCK_CLI_PATH = isWindows ? "C:\\mock\\path\\to\\kilocode" : "/mock/path/to/kilocode"
 
 // Mock the local telemetry module
 vi.mock("../telemetry", () => ({
+	getPlatformDiagnostics: vi.fn(() => ({ platform: "darwin", shell: "bash" })),
 	captureAgentManagerOpened: vi.fn(),
 	captureAgentManagerSessionStarted: vi.fn(),
 	captureAgentManagerSessionCompleted: vi.fn(),
 	captureAgentManagerSessionStopped: vi.fn(),
 	captureAgentManagerSessionError: vi.fn(),
 	captureAgentManagerLoginIssue: vi.fn(),
+}))
+
+// Mock CliPathResolver to return CliDiscoveryResult object
+// Note: vi.mock is hoisted, so we inline the platform check instead of using MOCK_CLI_PATH
+vi.mock("../CliPathResolver", () => ({
+	findKilocodeCli: vi.fn().mockResolvedValue({
+		cliPath: process.platform === "win32" ? "C:\\mock\\path\\to\\kilocode" : "/mock/path/to/kilocode",
+		shellPath: undefined,
+	}),
+	findExecutable: vi.fn().mockResolvedValue(undefined),
 }))
 
 let AgentManagerProvider: typeof import("../AgentManagerProvider").AgentManagerProvider
@@ -45,8 +58,15 @@ describe("AgentManagerProvider CLI spawning", () => {
 			ExtensionMode: { Development: 1, Production: 2, Test: 3 },
 		}))
 
+		// Mock CliInstaller so getLocalCliPath returns our mock path
+		vi.doMock("../CliInstaller", () => ({
+			getLocalCliPath: () => MOCK_CLI_PATH,
+		}))
+
+		// Mock fileExistsAtPath to return true only for MOCK_CLI_PATH
+		// This ensures findKilocodeCli finds the CLI via local path check (works on all platforms)
 		vi.doMock("../../../../utils/fs", () => ({
-			fileExistsAtPath: vi.fn().mockResolvedValue(false),
+			fileExistsAtPath: vi.fn().mockImplementation((p: string) => Promise.resolve(p === MOCK_CLI_PATH)),
 		}))
 
 		// Mock getRemoteUrl for gitUrl support
@@ -89,18 +109,29 @@ describe("AgentManagerProvider CLI spawning", () => {
 		expect(options?.shell).not.toBe(true)
 	})
 
-	it("spawns with shell: true on Windows when CLI path ends with .cmd", async () => {
-		// Reset modules to set up Windows-specific mock
+	// Windows-specific test - runs only on Windows CI
+	// We don't simulate Windows on other platforms - let the actual Windows CI test it
+	const windowsOnlyTest = isWindows ? it : it.skip
+
+	windowsOnlyTest("spawns with shell: true when CLI path ends with .cmd", async () => {
 		vi.resetModules()
 
-		const mockWorkspaceFolder = { uri: { fsPath: "/tmp/workspace" } }
+		const testNpmDir = "C:\\npm"
+		const testWorkspace = "C:\\tmp\\workspace"
+		const cmdPath = path.join(testNpmDir, "kilocode") + ".CMD"
+
+		const mockWorkspaceFolder = { uri: { fsPath: testWorkspace } }
 		const mockProvider = {
 			getState: vi.fn().mockResolvedValue({ apiConfiguration: { apiProvider: "kilocode" } }),
 		}
 
 		vi.doMock("vscode", () => ({
 			workspace: { workspaceFolders: [mockWorkspaceFolder] },
-			window: { showErrorMessage: vi.fn(), showWarningMessage: vi.fn(), ViewColumn: { One: 1 } },
+			window: {
+				showErrorMessage: vi.fn().mockResolvedValue(undefined),
+				showWarningMessage: vi.fn().mockResolvedValue(undefined),
+				ViewColumn: { One: 1 },
+			},
 			env: { openExternal: vi.fn() },
 			Uri: { parse: vi.fn(), joinPath: vi.fn() },
 			ViewColumn: { One: 1 },
@@ -115,6 +146,31 @@ describe("AgentManagerProvider CLI spawning", () => {
 			getRemoteUrl: vi.fn().mockResolvedValue(undefined),
 		}))
 
+		// Mock CliPathResolver to return .cmd path for Windows test
+		vi.doMock("../CliPathResolver", () => ({
+			findKilocodeCli: vi.fn().mockResolvedValue({ cliPath: cmdPath, shellPath: undefined }),
+			findExecutable: vi.fn().mockResolvedValue(cmdPath),
+		}))
+
+		vi.doMock("node:fs", () => ({
+			existsSync: vi.fn().mockReturnValue(false),
+			readdirSync: vi.fn().mockReturnValue([]),
+			promises: {
+				stat: vi.fn().mockImplementation((filePath: string) => {
+					if (filePath === cmdPath) {
+						return Promise.resolve({ isFile: () => true })
+					}
+					return Promise.reject(Object.assign(new Error("ENOENT"), { code: "ENOENT" }))
+				}),
+				lstat: vi.fn().mockImplementation((filePath: string) => {
+					if (filePath === cmdPath) {
+						return Promise.resolve({ isFile: () => true, isSymbolicLink: () => false })
+					}
+					return Promise.reject(Object.assign(new Error("ENOENT"), { code: "ENOENT" }))
+				}),
+			},
+		}))
+
 		class TestProc extends EventEmitter {
 			stdout = new EventEmitter()
 			stderr = new EventEmitter()
@@ -123,17 +179,15 @@ describe("AgentManagerProvider CLI spawning", () => {
 		}
 
 		const spawnMock = vi.fn(() => new TestProc())
-		// Return a .cmd path to simulate Windows local CLI installation
-		const execSyncMock = vi.fn(() => "C:\\Users\\test\\.kilocode\\cli\\pkg\\node_modules\\.bin\\kilocode.cmd")
-
 		vi.doMock("node:child_process", () => ({
 			spawn: spawnMock,
-			execSync: execSyncMock,
+			execSync: vi.fn().mockImplementation(() => {
+				throw new Error("not found")
+			}),
 		}))
 
-		// Mock process.platform to be win32
-		const originalPlatform = process.platform
-		Object.defineProperty(process, "platform", { value: "win32", writable: true })
+		const originalPath = process.env.PATH
+		process.env.PATH = testNpmDir
 
 		try {
 			const module = await import("../AgentManagerProvider")
@@ -148,8 +202,7 @@ describe("AgentManagerProvider CLI spawning", () => {
 
 			windowsProvider.dispose()
 		} finally {
-			// Restore original platform
-			Object.defineProperty(process, "platform", { value: originalPlatform, writable: true })
+			process.env.PATH = originalPath
 		}
 	})
 
@@ -557,8 +610,13 @@ describe("AgentManagerProvider gitUrl filtering", () => {
 			ExtensionMode: { Development: 1, Production: 2, Test: 3 },
 		}))
 
+		// Mock CliInstaller so getLocalCliPath returns our mock path
+		vi.doMock("../CliInstaller", () => ({
+			getLocalCliPath: () => MOCK_CLI_PATH,
+		}))
+
 		vi.doMock("../../../../utils/fs", () => ({
-			fileExistsAtPath: vi.fn().mockResolvedValue(false),
+			fileExistsAtPath: vi.fn().mockImplementation((p: string) => Promise.resolve(p === MOCK_CLI_PATH)),
 		}))
 
 		mockGetRemoteUrl = vi.fn().mockResolvedValue("https://github.com/org/repo.git")
@@ -611,23 +669,10 @@ describe("AgentManagerProvider gitUrl filtering", () => {
 	})
 
 	it("handles git URL retrieval errors gracefully", async () => {
-		// Need to recreate provider with the mock rejection set up BEFORE construction
-		// because pre-warming happens in the constructor
-		provider.dispose()
 		mockGetRemoteUrl.mockRejectedValue(new Error("No remote configured"))
+		const spawnProcessSpy = vi.spyOn((provider as any).processHandler, "spawnProcess")
 
-		const mockContext = { extensionUri: {}, extensionPath: "", extensionMode: 1 } as any
-		const mockOutputChannel = { appendLine: vi.fn() } as any
-		const mockClineProvider = {
-			getState: vi.fn().mockResolvedValue({ apiConfiguration: { apiProvider: "kilocode" } }),
-		}
-
-		const module = await import("../AgentManagerProvider")
-		const newProvider = new module.AgentManagerProvider(mockContext, mockOutputChannel, mockClineProvider as any)
-
-		const spawnProcessSpy = vi.spyOn((newProvider as any).processHandler, "spawnProcess")
-
-		await (newProvider as any).startAgentSession("test prompt")
+		await (provider as any).startAgentSession("test prompt")
 
 		// Should still spawn process without gitUrl
 		expect(spawnProcessSpy).toHaveBeenCalledWith(
@@ -637,8 +682,6 @@ describe("AgentManagerProvider gitUrl filtering", () => {
 			expect.objectContaining({ gitUrl: undefined }),
 			expect.any(Function),
 		)
-
-		newProvider.dispose()
 	})
 
 	it("stores gitUrl on created session", async () => {
@@ -794,8 +837,13 @@ describe("AgentManagerProvider telemetry", () => {
 			ExtensionMode: { Development: 1, Production: 2, Test: 3 },
 		}))
 
+		// Mock CliInstaller so getLocalCliPath returns our mock path
+		vi.doMock("../CliInstaller", () => ({
+			getLocalCliPath: () => MOCK_CLI_PATH,
+		}))
+
 		vi.doMock("../../../../utils/fs", () => ({
-			fileExistsAtPath: vi.fn().mockResolvedValue(false),
+			fileExistsAtPath: vi.fn().mockImplementation((p: string) => Promise.resolve(p === MOCK_CLI_PATH)),
 		}))
 
 		vi.doMock("../../../../services/code-index/managed/git-utils", () => ({
