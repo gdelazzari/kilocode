@@ -1891,12 +1891,29 @@ export class AgentManagerProvider implements vscode.Disposable {
 			return
 		}
 
+		// Extract githubRepo from gitUrl (e.g., "https://github.com/owner/repo" -> "owner/repo")
+		const githubRepoMatch = gitUrl.match(/github\.com[/:]([^/]+\/[^/.]+)/)
+		const githubRepo = githubRepoMatch?.[1]
+
+		if (!githubRepo) {
+			this.outputChannel.appendLine("[AgentManager] ERROR: Could not extract GitHub repo from git URL")
+			void vscode.window.showErrorMessage(t("kilocode:agentManager.errors.noGitUrl"))
+			this.postMessage({ type: "agentManager.startSessionFailed" })
+			return
+		}
+
+		// Get mode and model from message or use defaults
+		const mode = (message.mode as "architect" | "code" | "ask" | "debug" | "orchestrator") ?? "code"
+		const model = (message.model as string) ?? "claude-sonnet-4-20250514"
+
 		try {
 			// Prepare the cloud session
 			this.outputChannel.appendLine("[AgentManager] Preparing cloud agent session...")
 			const prepareResponse = await cloudAgentService.prepareSession({
-				gitUrl,
+				githubRepo,
 				prompt,
+				mode,
+				model,
 				kilocodeToken: kilocodeToken!,
 			})
 

@@ -3,6 +3,7 @@ import {
 	type CloudAgentPrepareResponse,
 	type CloudAgentInitiateResponse,
 	type CloudAgentSendMessageResponse,
+	type AgentMode,
 	getCloudAgentPrepareUrl,
 	getCloudAgentInitiateUrl,
 	getCloudAgentSendMessageUrl,
@@ -16,10 +17,14 @@ import {
  * Parameters for preparing a cloud agent session
  */
 export interface PrepareSessionParams {
-	/** Git repository URL */
-	gitUrl: string
+	/** GitHub repository in "owner/repo" format (e.g., "kilocode/kilocode") */
+	githubRepo: string
 	/** The initial prompt/task for the agent */
 	prompt: string
+	/** Kilo Code execution mode */
+	mode: AgentMode
+	/** AI model to use (e.g., "claude-sonnet-4-20250514") */
+	model: string
 	/** Kilo Code authentication token */
 	kilocodeToken: string
 	/** Organization ID (optional) */
@@ -52,8 +57,10 @@ export class CloudAgentService {
 		}
 
 		const requestBody: CloudAgentPrepareRequest = {
-			gitUrl: params.gitUrl,
+			githubRepo: params.githubRepo,
 			prompt: params.prompt,
+			mode: params.mode,
+			model: params.model,
 			organizationId: params.organizationId,
 		}
 

@@ -18,7 +18,8 @@ describe("CloudAgentService", () => {
 	describe("prepareSession", () => {
 		it("should prepare a cloud agent session successfully", async () => {
 			const mockResponse = {
-				cloudAgentSessionId: "test-session-123",
+				kiloSessionId: "550e8400-e29b-41d4-a716-446655440000",
+				cloudAgentSessionId: "agent_test-session-123",
 			}
 
 			mockFetch.mockResolvedValueOnce({
@@ -27,8 +28,10 @@ describe("CloudAgentService", () => {
 			})
 
 			const result = await service.prepareSession({
-				gitUrl: "https://github.com/test/repo",
+				githubRepo: "test/repo",
 				prompt: "Test prompt",
+				mode: "code",
+				model: "claude-sonnet-4-20250514",
 				kilocodeToken: "test-token",
 			})
 
@@ -41,14 +44,15 @@ describe("CloudAgentService", () => {
 						Authorization: "Bearer test-token",
 						"Content-Type": "application/json",
 					}),
-					body: expect.stringContaining("https://github.com/test/repo"),
+					body: expect.stringContaining("test/repo"),
 				}),
 			)
 		})
 
-		it("should include organizationId when provided", async () => {
+		it("should include all required fields in request body", async () => {
 			const mockResponse = {
-				cloudAgentSessionId: "test-session-456",
+				kiloSessionId: "550e8400-e29b-41d4-a716-446655440000",
+				cloudAgentSessionId: "agent_test-session-456",
 			}
 
 			mockFetch.mockResolvedValueOnce({
@@ -57,14 +61,20 @@ describe("CloudAgentService", () => {
 			})
 
 			await service.prepareSession({
-				gitUrl: "https://github.com/test/repo",
+				githubRepo: "test/repo",
 				prompt: "Test prompt",
+				mode: "architect",
+				model: "claude-sonnet-4-20250514",
 				kilocodeToken: "test-token",
-				organizationId: "org-123",
+				organizationId: "550e8400-e29b-41d4-a716-446655440001",
 			})
 
 			const callBody = JSON.parse(mockFetch.mock.calls[0][1].body)
-			expect(callBody.organizationId).toBe("org-123")
+			expect(callBody.githubRepo).toBe("test/repo")
+			expect(callBody.prompt).toBe("Test prompt")
+			expect(callBody.mode).toBe("architect")
+			expect(callBody.model).toBe("claude-sonnet-4-20250514")
+			expect(callBody.organizationId).toBe("550e8400-e29b-41d4-a716-446655440001")
 		})
 
 		it("should throw error when API returns non-ok response", async () => {
@@ -76,8 +86,10 @@ describe("CloudAgentService", () => {
 
 			await expect(
 				service.prepareSession({
-					gitUrl: "https://github.com/test/repo",
+					githubRepo: "test/repo",
 					prompt: "Test prompt",
+					mode: "code",
+					model: "claude-sonnet-4-20250514",
 					kilocodeToken: "invalid-token",
 				}),
 			).rejects.toThrow("Failed to prepare cloud agent session: 401")
@@ -86,8 +98,10 @@ describe("CloudAgentService", () => {
 		it("should throw error when token is missing", async () => {
 			await expect(
 				service.prepareSession({
-					gitUrl: "https://github.com/test/repo",
+					githubRepo: "test/repo",
 					prompt: "Test prompt",
+					mode: "code",
+					model: "claude-sonnet-4-20250514",
 					kilocodeToken: "",
 				}),
 			).rejects.toThrow("kilocodeToken is required")

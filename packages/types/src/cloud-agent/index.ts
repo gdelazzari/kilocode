@@ -8,19 +8,40 @@ import { z } from "zod"
  */
 
 // =============================================================================
+// Agent Mode Schema
+// =============================================================================
+
+/**
+ * Valid agent execution modes
+ */
+export const AgentModeSchema = z.enum(["architect", "code", "ask", "debug", "orchestrator"])
+export type AgentMode = z.infer<typeof AgentModeSchema>
+
+// =============================================================================
 // Prepare Session
 // =============================================================================
 
 /**
- * Request body for preparing a cloud agent session
+ * Request body for preparing a cloud agent session.
+ *
+ * Uses the public API schema from kilocode-backend which requires:
+ * - githubRepo in "owner/repo" format (NOT a full URL)
+ * - prompt, mode, model are required
+ * - organizationId is optional for team/org sessions
  */
 export const CloudAgentPrepareRequestSchema = z.object({
-	/** Git repository URL (e.g., "https://github.com/owner/repo") */
-	gitUrl: z.string().url(),
-	/** Organization ID (optional, for team/org sessions) */
-	organizationId: z.string().optional(),
+	/** GitHub repository in "owner/repo" format (e.g., "kilocode/kilocode") */
+	githubRepo: z
+		.string()
+		.regex(/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/, "Invalid repository format. Expected: owner/repo"),
 	/** The initial prompt/task for the agent */
-	prompt: z.string().min(1),
+	prompt: z.string().min(1, "Prompt is required").max(100_000, "Prompt must be at most 100,000 characters"),
+	/** Kilo Code execution mode */
+	mode: AgentModeSchema,
+	/** AI model to use (e.g., "claude-sonnet-4-20250514") */
+	model: z.string().min(1, "Model is required"),
+	/** Organization ID (optional, for team/org sessions) */
+	organizationId: z.string().uuid("Invalid organization ID format").optional(),
 })
 
 export type CloudAgentPrepareRequest = z.infer<typeof CloudAgentPrepareRequestSchema>
@@ -29,7 +50,9 @@ export type CloudAgentPrepareRequest = z.infer<typeof CloudAgentPrepareRequestSc
  * Response from preparing a cloud agent session
  */
 export const CloudAgentPrepareResponseSchema = z.object({
-	/** The unique session ID for the cloud agent */
+	/** The Kilo CLI session UUID */
+	kiloSessionId: z.string().uuid(),
+	/** The unique cloud agent session ID */
 	cloudAgentSessionId: z.string(),
 })
 
