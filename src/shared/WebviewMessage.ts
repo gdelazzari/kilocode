@@ -471,9 +471,14 @@ export interface KiloPassSubscriptionState {
 	cancelAtPeriodEnd: boolean
 	currentStreakMonths: number
 	nextYearlyIssueAt: string | null
-	nextBonusCreditsAt: string | null
 	nextBonusCreditsUsd: number | null
 	nextBillingAt: string | null
+	// Boost mode fields (matching backend's kilo-pass-router.ts KiloPassSubscriptionStateSchema)
+	currentPeriodBaseCreditsUsd: number // Total period allowance in USD (tier amount)
+	currentPeriodUsageUsd: number // Current period usage in USD
+	currentPeriodBonusCreditsUsd: number | null // Bonus credits available this period
+	isBonusUnlocked: boolean // Whether boost mode is unlocked
+	refillAt: string | null // When credits refill
 }
 
 export interface KiloPassStateResponsePayload {

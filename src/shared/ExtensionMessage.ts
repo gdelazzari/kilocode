@@ -27,7 +27,7 @@ import { ModelRecord, RouterModels } from "./api"
 import {
 	ProfileDataResponsePayload,
 	BalanceDataResponsePayload,
-	KiloPassStateResponsePayload,
+	KiloPassStateResponsePayload, // kilocode_change
 	TaskHistoryResponsePayload,
 	TasksByIdResponsePayload,
 } from "./WebviewMessage"
